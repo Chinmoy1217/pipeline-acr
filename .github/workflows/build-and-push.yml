@@ -1,0 +1,29 @@
+# This workflow builds a Docker image from the repository and pushes it to Azure Container Registry (ACR).
+# It is triggered on pushes to the main branch.
+name: Build and Push to ACR
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: ACR Login
+        run: az acr login --name ${{ secrets.ACR_NAME }}
+
+      - name: Build and Push Docker Image
+        run: |
+          docker build -t ${{ secrets.ACR_LOGIN_SERVER }}/etl-csv:v1 .
+          docker push ${{ secrets.ACR_LOGIN_SERVER }}/etl-csv:v1
