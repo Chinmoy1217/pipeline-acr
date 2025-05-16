@@ -41,7 +41,13 @@ try:
 
             # Read into DataFrame and keep only first 1000 rows
             df = pd.read_csv(StringIO(data))
-            df = df.head(1000)
+
+            # Check row count
+            if df.shape[0] < 1000:
+                raise ValueError(f"{blob.name} has less than 1000 rows ({df.shape[0]} rows). Failing pipeline.")
+
+            # Keep only the first 1000 rows
+            df = df.iloc[:1000, :]
 
             # Convert back to CSV
             output = df.to_csv(index=False)
