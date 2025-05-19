@@ -1,6 +1,4 @@
-# This workflow builds a Docker image from the repository and pushes it to Azure Container Registry (ACR).
-# It is triggered on pushes to the main branch.
-name: Build and Push to ACR
+name: Build, Push to ACR, and Deploy to ACI
 
 on:
   push:
@@ -8,12 +6,17 @@ on:
       - main
 
 jobs:
-  build-and-push:
+  build-push-deploy:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+
+      - name: Set up dynamic Docker tag
+        id: vars
+        run: |
+          echo "tag=$(date +%Y%m%d%H%M%S)" >> $GITHUB_OUTPUT
 
       - name: Azure Login
         uses: azure/login@v1
@@ -25,5 +28,22 @@ jobs:
 
       - name: Build and Push Docker Image
         run: |
-          docker build -t ${{ secrets.ACR_LOGIN_SERVER }}/etl-csv:v1 .
-          docker push ${{ secrets.ACR_LOGIN_SERVER }}/etl-csv:v1
+          docker build -t ${{ secrets.ACR_LOGIN_SERVER }}/etl-csv:${{ steps.vars.outputs.tag }} .
+          docker push ${{ secrets.ACR_LOGIN_SERVER }}/etl-csv:${{ steps.vars.outputs.tag }}
+
+      - name: Deploy to Azure Container Instance
+        run: |
+          az container create \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --name csv-etl-job \
+            --image ${{ secrets.ACR_LOGIN_SERVER }}/etl-csv:${{ steps.vars.outputs.tag }} \
+            --registry-login-server ${{ secrets.ACR_LOGIN_SERVER }} \
+            --registry-username ${{ secrets.ACR_USERNAME }} \
+            --registry-password ${{ secrets.ACR_PASSWORD }} \
+            --os-type Linux \
+            --cpu 1 \
+            --memory 1.5 \
+            --environment-variables \
+              AZURE_STORAGE_CONNECTION_STRING="${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}" \
+              LOGIC_APP_URL="${{ secrets.LOGIC_APP_URL }}" \
+            --restart-policy Never
